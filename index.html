@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <!-- Form to create new item -->
+  <form id="to-do-form">
+    <label>Description:</label>
+    <br>
+    <textarea name="description" id="description" maxlength="160" rows="2" required></textarea>
+    <br>
+    <br>
+    <label>Deadline date:</label>
+    <br>
+    <input type="datetime-local" name="deadline" id="deadline">
+    <script>
+      var today = new Date();
+      var MM = today.getMinutes();
+      var HH = today.getHours();
+      var dd = today.getDate();
+      var mm = today.getMonth() + 1;
+      var yyyy = today.getFullYear();
+
+      if (MM < 10) MM = '0' + MM;
+      if (HH < 10) HH = '0' + HH;
+      if (dd < 10) dd = '0' + dd;
+      if (mm < 10) mm = '0' + mm;
+      today = yyyy + '-' + mm + '-' + dd + 'T' + HH + ':' + MM;
+      document.getElementById('deadline').setAttribute('min', today);
+    </script>
+    <br>
+    <br>
+    <button id="btnAdd" type="submit" onclick="addItem()">Add</button>
+  </form>
+  <!-- Created items list -->
+  <div id="tasks-list">
+    <h3>TASKS:</h3>
+    <button id="btnSort" onclick="sortList()">SORT</button>
+    <ul id="to-do-list">
+    </ul>
+  </div>
+
+</body>
+
+</html>
+
+<script>
+  // sessionStorage.clear();
+  if (sessionStorage.getItem('lastId') === null) {
+    sessionStorage.setItem('lastId', 0);
+  }
+  var todoList = document.getElementById('to-do-list');
+  var lastId = sessionStorage.getItem('lastId');
+
+  // on refresh we load sessionStorage list items
+  window.onload = function () {
+    getItemsFromSessionStorage();
+  }
+
+  // update deadline time:
+  // show Days Hours Minutes
+  // if deadline is over - item deadline goes to 'expired'
+  // refreshes every 1s
+  var x = setInterval(function () {
+    Object.keys(sessionStorage).forEach(key => {
+      if (key.includes("item")) {
+        var storedItem = JSON.parse(sessionStorage.getItem(key));
+        var description = storedItem.description;
+        var deadline = storedItem.deadline;
+        if (deadline && deadline !== 'expired' && deadline != 'completed') {
+          var userViewDeadline = document.getElementById('deadline' + (key.replace(/^\D+/g, "")));
+          var data = new Date(deadline);
+          var diffTime = data - Date.now();
+          // checking if deadline reached/passed current Date
+          if (diffTime <= 0) {
+            sessionStorage.setItem(key, JSON.stringify({
+              description: description,
+              deadline: 'expired'
+            }));
+            userViewDeadline.textContent = 'expired';
+            return;
+          }
+          var timeRemaining = '';
+          var diffMinutes = Math.ceil(diffTime / (1000 * 60)); // overall time remaining in minutes
+          var daysRem = Math.floor(diffMinutes / (60 * 24));
+          var hoursRem = Math.floor(diffMinutes / 60) % 24;
+          var minsRem = Math.floor(diffMinutes - (daysRem * 24 * 60 + hoursRem * 60));
+          timeRemaining += daysRem + 'D ';
+          timeRemaining += hoursRem + 'H ';
+          timeRemaining += minsRem + 'M';
+          userViewDeadline.textContent = timeRemaining;
+        }
+      }
+    });
+  }, 1000);
+
+  // items sorting:
+  //  least time left to most time left;
+  //  completed items on top of no-deadline items;
+  //  expired deadline-items below completed;
+  //  no-deadline items are at the end;
+  function sortList() {
+    var list = todoList.getElementsByTagName('li');
+    var switching, i, elements, shouldSwitch;
+    switching = true;
+    while (switching) {
+      switching = false;
+      elements = todoList.getElementsByTagName('span');
+      for (i = 0; i < elements.length - 1; i++) {
+        shouldSwitch = false;
+        if (elements[i].innerHTML > elements[i + 1].innerHTML) {
+          shouldSwitch = true;
+          break;
+        }
+      }
+      if (shouldSwitch) {
+        list[i].parentNode.insertBefore(list[i + 1], list[i]);
+        switching = true;
+      }
+    }
+    switching = true;
+    while (switching) {
+      switching = false;
+      elements = todoList.getElementsByTagName('span');
+      for (i = 0; i < elements.length - 1; i++) {
+        elements = todoList.getElementsByTagName('span');
+        if (elements[i].innerHTML === '' && elements[i + 1].innerHTML) {
+          shouldSwitch = true;
+          break;
+        }
+      }
+      if (shouldSwitch) {
+        list[i].parentNode.insertBefore(list[i + 1], list[i]);
+        switching = true;
+      }
+    }
+  }
+
+  // add new list item
+  function addItem() {
+    var fieldValues = getInputValues();
+    if (fieldValues.description == "") {
+      return;
+    }
+    var newItem = document.createElement('li');
+    newItem.setAttribute('id', 'item' + lastId);
+    newItem.setAttribute('class', 'class-list');
+    var span = document.createElement('span');
+    span.setAttribute('id', 'deadline' + (lastId));
+    newItem.appendChild(document.createTextNode(fieldValues.description));
+    newItem.appendChild(document.createElement('br'));
+    span.appendChild(document.createTextNode(fieldValues.deadline));
+    newItem.appendChild(span);
+    newItem.appendChild(document.createElement('br'));
+    var delBtn = document.createElement('button');
+    delBtn.setAttribute('class', 'btnRemove');
+    delBtn.appendChild(document.createTextNode('remove'));
+    delBtn.setAttribute('onClick', 'removeItem("' + 'item' + lastId + '")');
+    newItem.appendChild(delBtn);
+    newItem.appendChild(document.createElement('br'));
+    var chekB = document.createElement('input');
+    chekB.setAttribute('id', 'completed' + lastId);
+    chekB.setAttribute('type', 'checkbox');
+    chekB.setAttribute('onClick', 'markCompleteTask("' + 'item' + lastId + '")');
+    var labelForCheckB = document.createElement('label');
+    var labelText = document.createTextNode('Completed? ');
+    labelForCheckB.setAttribute('class', 'completeLabel');
+    labelForCheckB.appendChild(labelText);
+    newItem.appendChild(labelForCheckB);
+    newItem.appendChild(chekB);
+
+    todoList.appendChild(newItem);
+
+    // place list item and next free ID in storage
+    sessionStorage.setItem('item' + lastId, JSON.stringify(fieldValues));
+    lastId++;
+    sessionStorage.setItem('lastId', lastId);
+
+    // reset input form values to default
+    document.getElementById('to-do-form').reset();
+  }
+
+  function confirmation(msg) {
+    var rez = confirm(msg);
+    if (rez == true) {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
+
+  // load items from session storage
+  function getItemsFromSessionStorage() {
+    Object.keys(sessionStorage).forEach(key => {
+      if (key.includes("item")) {
+        var storedItem = JSON.parse(sessionStorage.getItem(key));
+        var newItem = document.createElement('li');
+        newItem.setAttribute('id', key);
+        newItem.setAttribute('class', 'class-list');
+        var span = document.createElement('span');
+        span.setAttribute('id', 'deadline' + (key.replace(/^\D+/g, "")));
+        newItem.appendChild(document.createTextNode(storedItem.description));
+        newItem.appendChild(document.createElement('br'));
+        span.appendChild(document.createTextNode(storedItem.deadline));
+        newItem.appendChild(span);
+        newItem.appendChild(document.createElement('br'));
+        var delBtn = document.createElement('button');
+        delBtn.setAttribute('class', 'btnRemove');
+        delBtn.appendChild(document.createTextNode("remove"));
+        delBtn.setAttribute('onClick', 'removeItem("' + 'item' + key.replace(/^\D+/g, "") + '")');
+        newItem.appendChild(delBtn);
+        newItem.appendChild(document.createElement('br'));
+        var chekB = document.createElement('input');
+        chekB.setAttribute('id', 'completed' + (key.replace(/^\D+/g, "")));
+        chekB.setAttribute('type', 'checkbox');
+        chekB.setAttribute('onClick', 'markCompleteTask("' + 'item' + key.replace(/^\D+/g, "") + '")');
+        var labelForCheckB = document.createElement('label');
+        var labelText = document.createTextNode('Completed? ');
+        labelForCheckB.setAttribute('for', 'complete' + key.replace(/^\D+/g, ""));
+        labelForCheckB.setAttribute('class', 'completeLabel');
+        labelForCheckB.appendChild(labelText);
+        newItem.appendChild(labelForCheckB);
+        newItem.appendChild(chekB);
+        if (storedItem.deadline === 'completed') {
+          newItem.style.textDecoration = 'line-through';
+          newItem.removeChild(labelForCheckB);
+          newItem.removeChild(chekB);
+        }
+        todoList.appendChild(newItem);
+      }
+    });
+  }
+
+  // get form input values
+  function getInputValues() {
+    var description = document.getElementById('description').value;
+    var deadline = document.getElementById('deadline').value;
+    return {
+      description: description,
+      deadline: deadline
+    };
+  }
+
+  // remove list item from currentView and storage
+  function removeItem(itemId) {
+    if (confirmation("Are you sure want to delete this item?")) {
+      var item = document.getElementById(itemId);
+      todoList.removeChild(item);
+      sessionStorage.removeItem(itemId);
+    }
+  }
+
+  // checkbox to complete chosen task
+  function markCompleteTask(itemId) {
+    var checkBox = document.getElementById('completed' + (itemId.replace(/^\D+/g, "")));
+    if (checkBox.checked) {
+      var item = JSON.parse(sessionStorage.getItem(itemId));
+      var description = item.description;
+      var userViewDeadline = document.getElementById('deadline' + (itemId.replace(/^\D+/g, "")));
+      sessionStorage.setItem(itemId, JSON.stringify({
+        description: description,
+        deadline: 'completed'
+      }));
+      userViewDeadline.textContent = 'completed';
+      var li = document.getElementById(itemId).style.textDecoration = 'line-through';
+      checkBox.remove();
+    }
+  }
+</script>
+
+<style>
+  body {
+    background-color: snow;
+  }
+
+  #to-do-form {
+    margin: 50px auto;
+    padding: 25px;
+    width: 200px;
+    background-color: gainsboro;
+    border-style: outset;
+    border-color: antiquewhite;
+    border-width: 5px;
+    border-radius: 10px;
+  }
+
+  #description {
+    width: 180px;
+    max-width: 180px;
+  }
+
+  #deadline {
+    max-width: 180px;
+  }
+
+  #btnSort {
+    margin: 5px 10px;
+    background-color: gainsboro;
+    border-radius: 5px;
+  }
+
+  #btnAdd {
+    background-color: gainsboro;
+    border-radius: 5px;
+  }
+
+  .btnRemove {
+    background-color: gainsboro;
+    border-radius: 5px;
+  }
+
+  .completeLabel {
+    margin: 10px auto;
+  }
+
+  #tasks-list {
+    margin: 50px auto;
+    width: 600px;
+    padding: 25px;
+    list-style: none;
+    background-color: gainsboro;
+    border-style: outset;
+    border-color: antiquewhite;
+    border-width: 5px;
+    border-radius: 10px;
+  }
+
+  ul {
+    list-style: none;
+    padding: 5px;
+  }
+
+  li {
+    margin-top: 5px;
+    padding: 10px;
+    border-color: antiquewhite;
+    border-style: outset;
+    border-radius: 1px;
+  }
+
+  label {
+    margin: 50px;
+  }
+
+  h3 {
+    margin: 5px 10px;
+    width: 100px;
+  }
+</style>
